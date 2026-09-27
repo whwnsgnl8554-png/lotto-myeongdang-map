@@ -122,7 +122,7 @@ async function main() {
   const json = JSON.stringify(data).replace(/<\//g, '<\\/');
 
   let html = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
-  for (const key of ['/*LEAFLET_CSS*/', '/*LEAFLET_JS*/', '/*DATA*/', '/*DATA_URL*/']) {
+  for (const key of ['/*LEAFLET_CSS*/', '/*LEAFLET_JS*/', '/*DATA*/', '/*DATA_URL*/', '/*TILES*/']) {
     if (!html.includes(key)) throw new Error('template.html에 자리표시자가 없어요: ' + key);
   }
   // replace에 함수를 넘겨 '$&' 같은 특수 패턴이 치환되지 않게 함
@@ -131,6 +131,10 @@ async function main() {
              .replace('/*DATA*/', () => json);
 
   html = html.replace('/*DATA_URL*/', () => JSON.stringify(DATA_URL));
+  const tiles = (CONFIG.tiles || []).filter(x => x && x.url && !x.url.includes('YOUR_KEY'));
+  if (!tiles.length) throw new Error('config.json에 쓸 수 있는 지도 타일(tiles)이 없어요');
+  html = html.replace('/*TILES*/', () => JSON.stringify(tiles));
+  console.log('지도 타일:', tiles.map(x => x.name || x.url).join(' → '));
   const version = JSON.stringify({ latest: raw.latest, updated: raw.updated_at, shops: shops.length, builtAt: new Date().toISOString() }, null, 2);
 
   fs.mkdirSync(OUT_DIR, { recursive: true });

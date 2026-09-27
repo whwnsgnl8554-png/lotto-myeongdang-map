@@ -209,10 +209,19 @@ const fmtKm=d=>d<1?Math.round(d*1000/10)*10+'m':d.toFixed(d<10?1:0)+'km';
 /* ---------- 지도 ---------- */
 const KOREA=[36.35,127.85];
 const map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:6,maxZoom:18}).setView(KOREA,7);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-  subdomains:'abcd',maxZoom:19,
-  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-}).addTo(map);
+/* 지도 타일: config.json의 tiles 순서대로 쓰고, 첫 번째가 계속 실패하면 다음 것으로 바꿔요 */
+const TILES=/*TILES*/;
+let tileIdx=0,tileLayer=null;
+function useTiles(i){
+  const c=TILES[i];if(!c)return;
+  if(tileLayer)map.removeLayer(tileLayer);
+  let ok=0,fail=0;
+  tileLayer=L.tileLayer(c.url,{subdomains:c.subdomains||'abc',maxZoom:c.maxZoom||19,attribution:c.attribution||''})
+    .on('tileload',()=>{ok++;})
+    .on('tileerror',()=>{fail++;if(!ok&&fail>=4&&tileIdx+1<TILES.length){tileIdx++;useTiles(tileIdx);}})
+    .addTo(map);
+}
+useTiles(0);
 map.attributionControl.setPrefix(false);
 const renderer=L.canvas({padding:.3,tolerance:8});
 const markerLayer=L.layerGroup().addTo(map);
