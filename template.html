@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>로또 명당 지도</title>
+<style>
+/*LEAFLET_CSS*/
+:root{
+  --blue:#3182F6; --blue-weak:#E8F3FF; --ink:#191F28; --ink2:#4E5968; --mute:#8B95A1;
+  --line:#E5E8EB; --bg:#F2F4F6; --card:#FFFFFF;
+  --b-yellow:#FBC400; --b-blue:#69C8F2; --b-green:#9ACD32; --b-red:#FF6B6B; --b-gray:#B0B8C1;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overflow:hidden}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column;max-width:720px;margin:0 auto;background:var(--card)}
+
+/* header */
+.top{flex:none;padding:12px 16px 10px;background:var(--card);border-bottom:1px solid var(--line);z-index:5}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{border:0;background:transparent;padding:9px 0;border-radius:9px;font-size:15px;font-weight:600;color:var(--mute)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(25,31,40,.12)}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:500;color:var(--ink2);white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip.near{border-color:var(--blue);color:var(--blue);font-weight:600}
+.chip.near[aria-pressed="true"]{background:var(--blue);color:#fff}
+.filters{display:flex;gap:8px;margin-top:10px}
+.filters select{flex:1;min-width:0;appearance:none;-webkit-appearance:none;border:0;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%238B95A1' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border-radius:10px;padding:9px 28px 9px 12px;font-size:14px;font-weight:500;color:var(--ink)}
+.filters select[hidden]{display:none}
+
+/* main */
+main{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+#mapView{flex:1;min-height:0;position:relative}
+#map{position:absolute;inset:0;background:#E9EEF2}
+.fab{position:absolute;right:12px;bottom:28px;z-index:500;border:0;background:var(--card);color:var(--ink);
+  border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;box-shadow:0 2px 10px rgba(25,31,40,.18);display:flex;align-items:center;gap:6px}
+.fab svg{width:16px;height:16px}
+.legend{position:absolute;left:10px;bottom:28px;z-index:500;background:rgba(255,255,255,.94);border-radius:10px;padding:7px 9px;
+  display:flex;gap:9px;font-size:12px;color:var(--ink2);box-shadow:0 1px 6px rgba(25,31,40,.12)}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+/* sheet / list */
+#sheet{flex:none;height:42%;display:flex;flex-direction:column;background:var(--card);border-top-left-radius:18px;border-top-right-radius:18px;
+  margin-top:-14px;z-index:600;box-shadow:0 -4px 16px rgba(25,31,40,.08);transition:height .25s ease}
+#sheet.open{height:78%}
+main.rank #mapView{display:none}
+main.rank #sheet{height:100%;margin-top:0;border-radius:0;box-shadow:none}
+main.rank .handle{display:none}
+.handle{flex:none;border:0;background:transparent;padding:8px 0 2px;display:flex;justify-content:center}
+.handle::before{content:"";width:36px;height:4px;border-radius:2px;background:var(--line)}
+.sheet-head{flex:none;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 10px}
+.sheet-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em}
+.sheet-head span{font-size:13px;color:var(--mute)}
+.list{flex:1;min-height:0;overflow-y:auto;margin:0;padding:0 0 16px;list-style:none;-webkit-overflow-scrolling:touch}
+.item{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;text-align:left;padding:11px 20px}
+.item:active{background:var(--bg)}
+.rankno{flex:none;width:22px;font-size:15px;font-weight:700;color:var(--mute);text-align:center}
+.rankno.podium{color:var(--blue)}
+.ball{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.55) 0 18%,transparent 19%),var(--c);text-shadow:0 1px 1px rgba(0,0,0,.18)}
+.ball.sm{width:30px;height:30px;font-size:13px}
+.body{flex:1;min-width:0}
+.name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.addr{font-size:13px;color:var(--mute);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tags{display:flex;gap:6px;margin-top:5px}
+.tag{font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--bg);color:var(--ink2)}
+.tag.first{background:#FFF6D6;color:#9A6F00}
+.dist{flex:none;font-size:14px;font-weight:600;color:var(--blue)}
+.more{display:block;margin:6px 20px 0;width:calc(100% - 40px);border:0;background:var(--bg);border-radius:12px;padding:12px;font-size:14px;font-weight:600;color:var(--ink2)}
+.empty{padding:28px 24px;text-align:center;color:var(--ink2);font-size:15px;line-height:1.6}
+.empty p{margin:0 0 14px}
+.btn{border:0;border-radius:12px;padding:13px 18px;font-size:15px;font-weight:600;background:var(--blue);color:#fff}
+.btn.sub{background:var(--blue-weak);color:var(--blue)}
+.foot{padding:18px 20px 8px;font-size:12px;line-height:1.6;color:var(--mute)}
+.foot button{border:0;background:none;padding:0;color:var(--ink2);text-decoration:underline;font-size:12px}
+
+/* detail */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:1000;display:flex;align-items:flex-end;justify-content:center}
+.scrim[hidden]{display:none}
+.panel{width:100%;max-width:720px;max-height:86%;overflow-y:auto;background:var(--card);border-radius:20px 20px 0 0;
+  padding:22px 20px calc(20px + env(safe-area-inset-bottom,0px));animation:up .22s ease}
+@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.panel{animation:none}#sheet{transition:none}}
+.d-top{display:flex;gap:16px;align-items:center}
+.d-top .ball{width:64px;height:64px;font-size:24px}
+.d-top h3{margin:0;font-size:21px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+.d-top p{margin:4px 0 0;font-size:14px;color:var(--ink2);line-height:1.45}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:20px 0 6px}
+.stat{background:var(--bg);border-radius:12px;padding:12px 10px}
+.stat b{display:block;font-size:19px;font-weight:700}
+.stat small{font-size:12px;color:var(--mute)}
+.d-sec{margin-top:18px}
+.d-sec h4{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--ink2)}
+.rounds{display:flex;flex-wrap:wrap;gap:6px}
+.rounds span{font-size:13px;padding:5px 9px;border-radius:8px;background:#FFF6D6;color:#7A5800;font-weight:600}
+.rounds em{font-style:normal;font-size:13px;color:var(--mute);align-self:center}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:22px}
+.actions .wide{grid-column:1/-1}
+.about p{font-size:14px;line-height:1.65;color:var(--ink2);margin:0 0 12px}
+.about h3{margin:0 0 14px;font-size:20px}
+
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  background:rgba(25,31,40,.92);color:#fff;font-size:14px;padding:11px 16px;border-radius:12px;z-index:1100;transition:.2s;max-width:88%;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.me{width:18px;height:18px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 6px rgba(49,130,246,.22)}
+.leaflet-control-attribution{font-size:10px}
+.leaflet-bottom{bottom:14px}
+.stat small{white-space:nowrap;letter-spacing:-.03em}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="seg" role="tablist" aria-label="보기 방식">
+      <button type="button" data-tab="map" aria-pressed="true">지도로 찾기</button>
+      <button type="button" data-tab="rank" aria-pressed="false">명당 순위</button>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="지역 선택"></div>
+    <div class="filters">
+      <select id="radius" aria-label="반경" hidden>
+        <option value="1">반경 1km</option><option value="3" selected>반경 3km</option>
+        <option value="5">반경 5km</option><option value="10">반경 10km</option><option value="20">반경 20km</option>
+      </select>
+      <select id="gugun" aria-label="시군구" hidden></select>
+      <select id="min" aria-label="당첨 조건">
+        <option value="1" selected>1등 나온 곳</option>
+        <option value="3">1등 3회 이상</option>
+        <option value="5">1등 5회 이상</option>
+        <option value="10">1등 10회 이상</option>
+        <option value="0">2등 나온 곳까지</option>
+      </select>
+    </div>
+  </header>
+  <main id="main">
+    <section id="mapView">
+      <div id="map" aria-label="명당 지도"></div>
+      <div class="legend" id="legend"></div>
+      <button type="button" class="fab" id="locBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        내 위치
+      </button>
+    </section>
+    <section id="sheet">
+      <button type="button" class="handle" id="handle" aria-label="목록 펼치기"></button>
+      <div class="sheet-head"><h2 id="title"></h2><span id="sortLabel"></span></div>
+      <ul class="list" id="list"></ul>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="detail" hidden><div class="panel" role="dialog" aria-modal="true" id="panel"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>/*LEAFLET_JS*/</script>
+<script>const DB=/*DATA*/;</script>
+<script>
+(function(){
+"use strict";
+const REG=DB.regions;
+const toShops=arr=>arr.map((a,i)=>({i,n:a[0],ad:a[1],r:a[2],g:a[3],lat:a[4],lng:a[5],w2:a[6],au:a[7],mn:a[8],sa:a[9],last:a[10],w1:a[11],k:a[11].length}));
+let shops=toShops(DB.s);
+let META={latest:DB.latest,start:DB.start,updated:DB.updated};
+const st={tab:'map',region:'all',gugun:'',min:1,radius:3,pos:null,limit:60,scope:[]};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* 외부 연동 훅: 앱인토스 SDK 등으로 교체 가능 */
+const hooks={
+  openURL(u){const w=window.open(u,'_blank');if(!w)location.href=u;},
+  getLocation:null /* (resolve,reject)=>{} 형태로 넣으면 navigator.geolocation 대신 사용 */
+};
+window.LottoMap={
+  hooks,
+  setLocation(lat,lng){gotPosition(lat,lng);}
+};
+
+/* 회차 → 추첨일 (1회 2002-12-07, 매주 토요일) */
+function drawDate(r){const d=new Date(Date.UTC(2002,11,7)+(r-1)*7*864e5);
+  return d.getUTCFullYear()+'.'+String(d.getUTCMonth()+1).padStart(2,'0')+'.'+String(d.getUTCDate()).padStart(2,'0');}
+
+/* 로또 공 색으로 등급 표시 */
+const TIERS=[
+  {min:10,c:'var(--b-red)',hex:'#FF6B6B',r:13,label:'10회+'},
+  {min:5,c:'var(--b-green)',hex:'#9ACD32',r:11,label:'5–9회'},
+  {min:2,c:'var(--b-blue)',hex:'#69C8F2',r:9,label:'2–4회'},
+  {min:1,c:'var(--b-yellow)',hex:'#FBC400',r:7.5,label:'1회'},
+  {min:0,c:'var(--b-gray)',hex:'#B0B8C1',r:6,label:'2등만'}
+];
+const tier=s=>TIERS.find(t=>s.k>=t.min);
+
+function km(a,b,c,d){const R=6371,x=(c-a)*Math.PI/180,y=(d-b)*Math.PI/180;
+  const h=Math.sin(x/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+const fmtKm=d=>d<1?Math.round(d*1000/10)*10+'m':d.toFixed(d<10?1:0)+'km';
+
+/* ---------- 지도 ---------- */
+const KOREA=[36.35,127.85];
+const map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:6,maxZoom:18}).setView(KOREA,7);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  subdomains:'abcd',maxZoom:19,
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+}).addTo(map);
+map.attributionControl.setPrefix(false);
+const renderer=L.canvas({padding:.3,tolerance:8});
+const markerLayer=L.layerGroup().addTo(map);
+const meLayer=L.layerGroup().addTo(map);
+let selMarker=null;
+const MAX_MARKERS=900;
+
+function drawMarkers(){
+  markerLayer.clearLayers();
+  if(st.tab!=='map')return;
+  const b=map.getBounds().pad(.25);
+  let arr=st.scope.filter(s=>b.contains([s.lat,s.lng]));
+  arr.sort((a,b)=>a.k-b.k||a.w2-b.w2);
+  if(arr.length>MAX_MARKERS)arr=arr.slice(-MAX_MARKERS);
+  const z=map.getZoom(),scale=z<=8?.75:z<=11?.9:1;
+  for(const s of arr){
+    const t=tier(s);
+    L.circleMarker([s.lat,s.lng],{renderer,radius:t.r*scale,color:'#fff',weight:1.6,fillColor:t.hex,fillOpacity:.96})
+      .on('click',()=>openDetail(s)).addTo(markerLayer);
+  }
+}
+
+function highlight(s){
+  if(selMarker)map.removeLayer(selMarker);
+  selMarker=L.circleMarker([s.lat,s.lng],{radius:tier(s).r+7,color:'#191F28',weight:2.5,fill:false,interactive:false}).addTo(map);
+}
+
+/* ---------- 범위 계산 ---------- */
+function computeScope(){
+  let arr=shops.filter(s=>st.min===0?true:s.k>=st.min);
+  if(st.region==='near'){
+    if(!st.pos)return [];
+    const [la,ln]=st.pos;
+    arr=arr.map(s=>(s.d=km(la,ln,s.lat,s.lng),s)).filter(s=>s.d<=st.radius);
+  }else if(st.region!=='all'){
+    arr=arr.filter(s=>s.r===st.region&&(!st.gugun||s.g===st.gugun));
+  }
+  if(st.pos&&st.region!=='near'){const [la,ln]=st.pos;arr.forEach(s=>s.d=km(la,ln,s.lat,s.lng));}
+  return arr;
+}
+const byWins=(a,b)=>b.k-a.k||b.w2-a.w2||(a.d??0)-(b.d??0);
+const byDist=(a,b)=>a.d-b.d;
+
+function scopeName(){
+  if(st.region==='near')return '내 주변 '+st.radius+'km';
+  if(st.region==='all')return '전국';
+  return REG[st.region]+(st.gugun?' '+st.gugun:'');
+}
+
+/* ---------- 목록 ---------- */
+function itemHTML(s,rank){
+  const t=tier(s);
+  const ball=`<span class="ball${rank?' sm':''}" style="--c:${t.c}" aria-hidden="true">${s.k||'2'}</span>`;
+  const tags=(s.k?`<span class="tag first">1등 ${s.k}회</span>`:'')+(s.w2?`<span class="tag">2등 ${s.w2}회</span>`:'');
+  return `<li><button type="button" class="item" data-i="${s.i}">
+    ${rank?`<span class="rankno${rank<=3?' podium':''}">${rank}</span>`:''}${ball}
+    <span class="body"><div class="name">${esc(s.n)}</div><div class="addr">${esc(s.ad)}</div><div class="tags">${tags}</div></span>
+    ${s.d!=null&&st.pos?`<span class="dist">${fmtKm(s.d)}</span>`:''}
+  </button></li>`;
+}
+
+function footHTML(){
+  return `<li class="foot">추첨은 매 회 독립적이라 판매점이 당첨 확률을 바꾸지는 않아요. 재미로만 봐 주세요.<br>
+  동행복권 공개 당첨판매점 ${META.start}~${META.latest}회 기준 · <button type="button" id="aboutBtn">데이터 안내</button></li>`;
+}
+
+function renderList(){
+  const L_=$('list');
+  let arr,title,sort;
+  if(st.region==='near'&&!st.pos){
+    $('title').textContent='내 주변 명당';$('sortLabel').textContent='';
+    L_.innerHTML=`<li class="empty"><p>위치 권한을 허용하면 반경 안의 1등 명당을<br>가까운 순으로 보여 드려요.</p>
+      <button type="button" class="btn" id="askLoc">내 위치로 찾기</button></li>`+footHTML();
+    return;
+  }
+  if(st.tab==='rank'){
+    arr=st.scope.slice().sort(byWins);
+    title=scopeName()+' 명당 순위';sort='1등 많은 순';
+  }else if(st.region==='near'){
+    arr=st.scope.slice().sort(byDist);
+    title=`${st.radius}km 안 명당 ${arr.length.toLocaleString()}곳`;sort='가까운 순';
+  }else{
+    const b=map.getBounds();
+    arr=st.scope.filter(s=>b.contains([s.lat,s.lng])).sort(byWins);
+    title=`지도 안 명당 ${arr.length.toLocaleString()}곳`;sort='1등 많은 순';
+  }
+  $('title').textContent=title;$('sortLabel').textContent=sort;
+  if(!arr.length){
+    const msg=st.region==='near'
+      ?`반경 ${st.radius}km 안에 조건에 맞는 명당이 없어요.<br>반경을 넓히거나 당첨 조건을 낮춰 보세요.`
+      :'이 범위에는 조건에 맞는 명당이 없어요.<br>지도를 옮기거나 당첨 조건을 낮춰 보세요.';
+    L_.innerHTML=`<li class="empty"><p>${msg}</p></li>`+footHTML();return;
+  }
+  const shown=arr.slice(0,st.limit);
+  let html='';let rank=0,prev=null;
+  shown.forEach((s,idx)=>{
+    if(st.tab==='rank'){if(prev===null||s.k!==prev.k)rank=idx+1;prev=s;}
+    html+=itemHTML(s,st.tab==='rank'?rank:0);
+  });
+  if(arr.length>st.limit)html+=`<li><button type="button" class="more" id="moreBtn">${(arr.length-st.limit).toLocaleString()}곳 더 보기</button></li>`;
+  L_.innerHTML=html+footHTML();
+}
+
+function renderLegend(){
+  $('legend').innerHTML='<span style="font-weight:600">1등</span>'+TIERS.filter(t=>st.min===0||t.min>=Math.max(1,st.min)||(t.min>0&&t.min<st.min&&false))
+    .filter(t=>t.min>0||st.min===0)
+    .filter(t=>t.min===0||TIERS.indexOf(t)===0||t.min>=st.min||TIERS[TIERS.indexOf(t)-1].min>st.min)
+    .map(t=>`<span><i style="background:${t.hex}"></i>${t.label}</span>`).join('');
+}
+
+/* ---------- 상태 갱신 ---------- */
+function refresh(opts={}){
+  st.scope=computeScope();
+  st.limit=60;
+  if(opts.fit)fitScope();
+  drawMarkers();renderList();renderLegend();
+  $('radius').hidden=st.region!=='near';
+  $('gugun').hidden=typeof st.region!=='number';
+}
+
+function fitScope(){
+  if(st.tab!=='map')return;
+  if(st.region==='near'&&st.pos){
+    map.fitBounds(L.latLng(st.pos).toBounds(st.radius*2000),{padding:[10,10]});return;
+  }
+  if(st.region==='all'){map.setView(KOREA,7);return;}
+  const pts=shops.filter(s=>s.r===st.region&&(!st.gugun||s.g===st.gugun)).map(s=>[s.lat,s.lng]);
+  if(pts.length)map.fitBounds(L.latLngBounds(pts),{padding:[24,24],maxZoom:15});
+}
+
+/* ---------- 칩 / 필터 ---------- */
+function renderChips(){
+  const items=[['near','내 주변'],['all','전국'],...REG.map((r,i)=>[i,r])];
+  $('chips').innerHTML=items.map(([v,l])=>`<button type="button" class="chip${v==='near'?' near':''}" data-v="${v}" aria-pressed="${st.region===v}">${l}</button>`).join('');
+}
+$('chips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip');if(!b)return;
+  const v=b.dataset.v;
+  st.region=v==='near'||v==='all'?v:+v;st.gugun='';
+  renderChips();
+  if(typeof st.region==='number'){
+    const gs=[...new Set(shops.filter(s=>s.r===st.region).map(s=>s.g).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+    $('gugun').innerHTML='<option value="">'+REG[st.region]+' 전체</option>'+gs.map(g=>`<option>${esc(g)}</option>`).join('');
+  }
+  if(st.region==='near'&&!st.pos){refresh();locate();return;}
+  refresh({fit:true});
+});
+$('gugun').addEventListener('change',e=>{st.gugun=e.target.value;refresh({fit:true});});
+$('min').addEventListener('change',e=>{st.min=+e.target.value;refresh();});
+$('radius').addEventListener('change',e=>{st.radius=+e.target.value;refresh({fit:true});});
+
+document.querySelector('.seg').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  st.tab=b.dataset.tab;
+  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  $('main').classList.toggle('rank',st.tab==='rank');
+  if(st.tab==='map')setTimeout(()=>{map.invalidateSize();refresh();},0);else refresh();
+  $('list').scrollTop=0;
+});
+
+$('handle').addEventListener('click',()=>{
+  const open=$('sheet').classList.toggle('open');
+  $('handle').setAttribute('aria-label',open?'목록 접기':'목록 펼치기');
+  setTimeout(()=>map.invalidateSize(),260);
+});
+
+$('list').addEventListener('click',e=>{
+  if(e.target.id==='moreBtn'){st.limit+=100;const y=$('list').scrollTop;renderList();$('list').scrollTop=y;return;}
+  if(e.target.id==='askLoc'){locate();return;}
+  if(e.target.id==='aboutBtn'){openAbout();return;}
+  const it=e.target.closest('.item');if(it)openDetail(shops[+it.dataset.i]);
+});
+
+let moveTimer;
+map.on('moveend',()=>{clearTimeout(moveTimer);moveTimer=setTimeout(()=>{drawMarkers();if(st.tab==='map'&&st.region!=='near'){st.limit=60;renderList();}},80);});
+
+/* ---------- 위치 ---------- */
+let locating=false;
+function locate(){
+  if(locating)return;
+  const fail=msg=>{locating=false;toast(msg);};
+  const ok=(lat,lng)=>{locating=false;gotPosition(lat,lng);};
+  locating=true;toast('현재 위치를 확인하고 있어요');
+  if(hooks.getLocation){
+    hooks.getLocation((lat,lng)=>ok(lat,lng),()=>fail('위치를 가져오지 못했어요. 지역을 직접 골라 보세요.'));return;
+  }
+  if(!navigator.geolocation){fail('이 환경에서는 위치를 쓸 수 없어요. 지역을 직접 골라 보세요.');return;}
+  navigator.geolocation.getCurrentPosition(
+    p=>ok(p.coords.latitude,p.coords.longitude),
+    err=>fail(err.code===1?'위치 권한이 꺼져 있어요. 설정에서 허용하거나 지역을 직접 골라 보세요.':'위치를 가져오지 못했어요. 잠시 후 다시 눌러 보세요.'),
+    {enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+function gotPosition(lat,lng){
+  st.pos=[lat,lng];$('toast').classList.remove('show');
+  meLayer.clearLayers();
+  L.marker(st.pos,{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[18,18]}),interactive:false,keyboard:false}).addTo(meLayer);
+  st.region='near';renderChips();
+  if(st.tab==='rank'){st.tab='map';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.tab==='map'));$('main').classList.remove('rank');setTimeout(()=>map.invalidateSize(),0);}
+  refresh({fit:true});
+  L.circle(st.pos,{radius:st.radius*1000,color:'#3182F6',weight:1,fillOpacity:.05,interactive:false}).addTo(meLayer);
+}
+$('radius').addEventListener('change',()=>{if(st.pos){meLayer.eachLayer(l=>{if(l instanceof L.Circle)l.setRadius(st.radius*1000);});}});
+$('locBtn').addEventListener('click',()=>{
+  if(st.pos&&st.region!=='near'){st.region='near';renderChips();refresh({fit:true});}
+  else if(st.pos)map.fitBounds(L.latLng(st.pos).toBounds(st.radius*2000));
+  else locate();
+});
+
+/* ---------- 상세 ---------- */
+function openDetail(s){
+  const t=tier(s);
+  const rs=s.w1.slice().reverse();
+  const cnt=new Map();rs.forEach(r=>cnt.set(r,(cnt.get(r)||0)+1));
+  const uniq=[...cnt.keys()];const shown=uniq.slice(0,24);
+  const dist=st.pos?km(st.pos[0],st.pos[1],s.lat,s.lng):null;
+  $('panel').innerHTML=`
+    <div class="d-top"><span class="ball" style="--c:${t.c}" aria-hidden="true">${s.k||'2'}</span>
+      <div><h3>${esc(s.n)}</h3><p>${esc(s.ad)}${dist!=null?`<br><b style="color:var(--blue)">여기서 ${fmtKm(dist)}</b>`:''}</p></div></div>
+    <div class="stats">
+      <div class="stat"><b>${s.k}회</b><small>1등 배출</small></div>
+      <div class="stat"><b>${s.w2}회</b><small>2등 배출</small></div>
+      <div class="stat"><b>${s.k?`${s.au}/${s.mn}/${s.sa}`:'-'}</b><small>자동/수동/반자동</small></div>
+    </div>
+    ${s.k?`<div class="d-sec"><h4>1등 나온 회차 (최근 ${drawDate(rs[0])} ${rs[0]}회)</h4>
+      <div class="rounds">${shown.map(r=>`<span title="${drawDate(r)}">${r}회${cnt.get(r)>1?' ×'+cnt.get(r):''}</span>`).join('')}${uniq.length>shown.length?`<em>외 ${uniq.length-shown.length}개 회차</em>`:''}</div></div>`
+      :`<div class="d-sec"><h4>1등 기록은 없고 2등만 나온 곳이에요</h4></div>`}
+    <div class="actions">
+      <button type="button" class="btn" id="dRoute">길찾기</button>
+      <button type="button" class="btn sub" id="dCopy">주소 복사</button>
+      ${st.tab==='rank'?'<button type="button" class="btn sub wide" id="dMap">지도에서 보기</button>':''}
+    </div>`;
+  $('detail').hidden=false;
+  if(st.tab==='map')highlight(s);
+  $('dRoute').onclick=()=>hooks.openURL(`https://map.kakao.com/link/to/${encodeURIComponent(s.n)},${s.lat},${s.lng}`);
+  $('dCopy').onclick=()=>copy(s.ad);
+  if($('dMap'))$('dMap').onclick=()=>{
+    closeDetail();st.tab='map';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.tab==='map'));
+    $('main').classList.remove('rank');
+    setTimeout(()=>{map.invalidateSize();map.setView([s.lat,s.lng],16);refresh();highlight(s);},0);
+  };
+  $('dRoute').focus();
+}
+function openAbout(){
+  $('panel').innerHTML=`<div class="about"><h3>데이터 안내</h3>
+    <p>동행복권이 공개한 로또6/45 당첨 판매점 기록 ${META.start}회~${META.latest}회(${drawDate(META.latest)} 추첨분까지)를 판매점별로 모았어요. 그 이전 회차는 판매점 정보가 공개되지 않았어요.</p>
+    <p>인터넷 판매분은 지도에 표시할 수 없어 뺐어요. 폐업했거나 이전한 판매점이 섞여 있을 수 있어요.</p>
+    <p>로또 추첨은 매 회 독립적인 무작위 추첨이에요. 1등이 많이 나온 곳은 대체로 판매량이 많은 곳이고, 그곳에서 산다고 당첨 확률이 올라가지는 않아요.</p>
+    <p>복권은 만 19세 이상만 살 수 있어요.</p></div>
+    <div class="actions"><button type="button" class="btn wide" id="dClose">확인</button></div>`;
+  $('detail').hidden=false;$('dClose').onclick=closeDetail;$('dClose').focus();
+}
+function closeDetail(){$('detail').hidden=true;}
+$('detail').addEventListener('click',e=>{if(e.target.id==='detail')closeDetail();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('detail').hidden)closeDetail();});
+
+function copy(t){
+  const done=()=>toast('주소를 복사했어요');
+  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(t).then(done,()=>fallback());}else fallback();
+  function fallback(){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');done();}catch(_){toast('복사하지 못했어요');}ta.remove();}
+}
+let toastTimer;
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);}
+
+/* ---------- 최신 데이터 불러오기 ----------
+   화면은 파일에 넣어 둔 데이터로 바로 띄우고,
+   GitHub Pages의 data.json이 더 최신이면 조용히 교체해요. */
+const DATA_URL=/*DATA_URL*/;
+const CACHE_KEY='lotto-map-data';
+function applyData(d){
+  if(!d||!Array.isArray(d.s)||d.s.length<1000||!Array.isArray(d.regions)||d.regions.join()!==REG.join())return false;
+  if(!(d.latest>META.latest))return false;
+  shops=toShops(d.s);
+  META={latest:d.latest,start:d.start,updated:d.updated};
+  const y=$('list').scrollTop;refresh();$('list').scrollTop=y;
+  return true;
+}
+function loadCached(){
+  try{const t=localStorage.getItem(CACHE_KEY);if(t)applyData(JSON.parse(t));}catch(_){}
+}
+async function loadRemote(){
+  if(!DATA_URL||!window.fetch)return;
+  const ctl=window.AbortController?new AbortController():null;
+  const timer=setTimeout(()=>ctl&&ctl.abort(),8000);
+  try{
+    const res=await fetch(DATA_URL,{cache:'no-cache',signal:ctl&&ctl.signal});
+    if(!res.ok)return;
+    const txt=await res.text();
+    if(applyData(JSON.parse(txt))){try{localStorage.setItem(CACHE_KEY,txt);}catch(_){}}
+  }catch(_){/* 네트워크 실패 시 내장 데이터 그대로 사용 */}
+  finally{clearTimeout(timer);}
+}
+
+renderChips();refresh();
+loadCached();loadRemote();
+})();
+</script>
+</body>
+</html>

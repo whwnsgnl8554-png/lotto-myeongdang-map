@@ -1,0 +1,13 @@
+{
+  "name": "lotto-myeongdang-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "로또 명당 지도 - 당첨판매점 데이터 갱신 및 단일 HTML 빌드",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  }
+}
