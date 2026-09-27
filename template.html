@@ -166,6 +166,7 @@ main.rank .handle{display:none}
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>/*LEAFLET_JS*/</script>
+<script>/*AIT_BRIDGE*/</script>
 <script>const DB=/*DATA*/;</script>
 <script>
 (function(){
@@ -187,6 +188,23 @@ window.LottoMap={
   hooks,
   setLocation(lat,lng){gotPosition(lat,lng);}
 };
+
+/* 토스 앱 안(앱인토스)에서는 SDK로 위치와 외부 링크를 처리해요 */
+const AIT=window.__AIT__;
+const inToss=!!(AIT&&window.ReactNativeWebView);
+if(inToss){
+  hooks.getLocation=async(ok,fail)=>{
+    try{
+      const f=AIT.getCurrentLocation;
+      let s=await f.getPermission();
+      if(s!=='allowed')s=await f.openPermissionDialog();
+      if(s!=='allowed')return fail('denied');
+      const loc=await f({accuracy:AIT.Accuracy.Balanced});
+      ok(loc.coords.latitude,loc.coords.longitude);
+    }catch(e){fail(e&&/permission/i.test(e.name||'')?'denied':'error');}
+  };
+  hooks.openURL=u=>{AIT.openURL(u).catch(()=>{location.href=u;});};
+}
 
 /* 회차 → 추첨일 (1회 2002-12-07, 매주 토요일) */
 function drawDate(r){const d=new Date(Date.UTC(2002,11,7)+(r-1)*7*864e5);
@@ -406,7 +424,7 @@ function locate(){
   const ok=(lat,lng)=>{locating=false;gotPosition(lat,lng);};
   locating=true;toast('현재 위치를 확인하고 있어요');
   if(hooks.getLocation){
-    hooks.getLocation((lat,lng)=>ok(lat,lng),()=>fail('위치를 가져오지 못했어요. 지역을 직접 골라 보세요.'));return;
+    hooks.getLocation((lat,lng)=>ok(lat,lng),why=>fail(why==='denied'?'위치 권한이 꺼져 있어요. 권한을 허용하거나 지역을 직접 골라 보세요.':'위치를 가져오지 못했어요. 잠시 후 다시 눌러 보세요.'));return;
   }
   if(!navigator.geolocation){fail('이 환경에서는 위치를 쓸 수 없어요. 지역을 직접 골라 보세요.');return;}
   navigator.geolocation.getCurrentPosition(

@@ -122,7 +122,7 @@ async function main() {
   const json = JSON.stringify(data).replace(/<\//g, '<\\/');
 
   let html = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
-  for (const key of ['/*LEAFLET_CSS*/', '/*LEAFLET_JS*/', '/*DATA*/', '/*DATA_URL*/', '/*TILES*/']) {
+  for (const key of ['/*LEAFLET_CSS*/', '/*LEAFLET_JS*/', '/*DATA*/', '/*DATA_URL*/', '/*TILES*/', '/*AIT_BRIDGE*/']) {
     if (!html.includes(key)) throw new Error('template.html에 자리표시자가 없어요: ' + key);
   }
   // replace에 함수를 넘겨 '$&' 같은 특수 패턴이 치환되지 않게 함
@@ -134,6 +134,14 @@ async function main() {
   const tiles = (CONFIG.tiles || []).filter(x => x && x.url && !x.url.includes('YOUR_KEY'));
   if (!tiles.length) throw new Error('config.json에 쓸 수 있는 지도 타일(tiles)이 없어요');
   html = html.replace('/*TILES*/', () => JSON.stringify(tiles));
+
+  // 앱인토스 SDK(위치·외부 링크)를 브라우저용 한 덩어리로 묶어서 넣어요
+  const esbuild = require('esbuild');
+  const bridge = esbuild.buildSync({
+    entryPoints: [path.join(__dirname, 'bridge.js')], bundle: true, format: 'iife',
+    minify: true, write: false, platform: 'browser', target: ['es2019'], logLevel: 'error',
+  }).outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+  html = html.replace('/*AIT_BRIDGE*/', () => bridge);
   console.log('지도 타일:', tiles.map(x => x.name || x.url).join(' → '));
   const version = JSON.stringify({ latest: raw.latest, updated: raw.updated_at, shops: shops.length, builtAt: new Date().toISOString() }, null, 2);
 

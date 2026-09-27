@@ -4,10 +4,17 @@
   "private": true,
   "description": "로또 명당 지도 - 당첨판매점 데이터 갱신 및 단일 HTML 빌드",
   "scripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "ait": "node build.js && ait build"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "leaflet": "1.9.4"
+    "leaflet": "1.9.4",
+    "@apps-in-toss/web-framework": "3.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }
