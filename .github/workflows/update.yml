@@ -30,11 +30,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
+      # 앱인토스 콘솔에 올리는 .ait 파일 만들기 (appName은 apps-in-toss.config.mjs)
+      - run: npx ait build
       # 앱인토스에 새로 올릴 일이 생기면 Actions 실행 화면에서 받을 수 있게 보관
       - uses: actions/upload-artifact@v4
         with:
-          name: appintoss-index-html
-          path: dist/index.html
+          name: appintoss-bundle
+          path: |
+            *.ait
+            dist/index.html
           retention-days: 30
 
   deploy:
@@ -46,4 +50,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-        
