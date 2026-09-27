@@ -1,0 +1,49 @@
+name: 명당 데이터 주간 갱신
+
+on:
+  schedule:
+    # 매주 일요일·화요일 오전 9시(KST) — 배출점 확정이 늦어지는 경우 대비
+    - cron: '0 0 * * 0,2'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      # 앱인토스에 새로 올릴 일이 생기면 Actions 실행 화면에서 받을 수 있게 보관
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appintoss-index-html
+          path: dist/index.html
+          retention-days: 30
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+        
