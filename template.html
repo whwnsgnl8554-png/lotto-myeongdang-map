@@ -189,26 +189,33 @@ window.LottoMap={
   setLocation(lat,lng){gotPosition(lat,lng);}
 };
 
-/* 토스 앱 안(앱인토스)에서는 SDK로 위치와 외부 링크를 처리해요 */
+/* 토스 앱 안(앱인토스)에서는 SDK로 위치와 외부 링크를 처리해요.
+   토스 연결 객체(ReactNativeWebView)가 페이지 로드보다 늦게 생길 수 있어서
+   로드 시점이 아니라 버튼을 누르는 순간마다 확인해요. */
 const AIT=window.__AIT__;
-const inToss=!!(AIT&&window.ReactNativeWebView);
-if(inToss){
-  hooks.getLocation=async(ok,fail)=>{
-    try{
-      const f=AIT.getCurrentLocation;
-      let s=await f.getPermission();
-      if(s!=='allowed')s=await f.openPermissionDialog();
-      if(s!=='allowed')return fail('denied');
-      const loc=await f({accuracy:AIT.Accuracy.Balanced});
-      ok(loc.coords.latitude,loc.coords.longitude);
-    }catch(e){fail(e&&/permission/i.test(e.name||'')?'denied':'error');}
-  };
-  hooks.openURL=u=>{
-    Promise.resolve().then(()=>AIT.openURL(u)).catch(()=>{
-      copy(u);toast('링크를 열지 못해 주소를 복사했어요. 브라우저에 붙여 넣어 주세요.');
-    });
-  };
-}
+const isToss=()=>!!(AIT&&window.ReactNativeWebView);
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+const linkFail=u=>{copy(u,'링크를 열지 못해 주소를 복사했어요. 브라우저에 붙여 넣어 주세요.');};
+hooks.openURL=u=>{
+  if(isToss()){
+    const open=(AIT.Device&&AIT.Device.openURL)||AIT.openURL;
+    withTimeout(Promise.resolve().then(()=>open(u)),4000).catch(()=>linkFail(u));
+    return;
+  }
+  const w=window.open(u,'_blank','noopener');
+  if(!w)linkFail(u);
+};
+hooks.getLocation=null;
+const tossLocation=async(ok,fail)=>{
+  try{
+    const f=AIT.getCurrentLocation;
+    let s=await f.getPermission();
+    if(s!=='allowed')s=await f.openPermissionDialog();
+    if(s!=='allowed')return fail('denied');
+    const loc=await f({accuracy:AIT.Accuracy.Balanced});
+    ok(loc.coords.latitude,loc.coords.longitude);
+  }catch(e){fail(e&&/permission/i.test(e.name||'')?'denied':'error');}
+};
 
 /* 화면 안의 모든 외부 링크(지도 출처 표기 등)는 웹뷰 안에서 이동하지 않고
    hooks.openURL로 기기 브라우저에서 열어요 */
@@ -438,8 +445,9 @@ function locate(){
   const fail=msg=>{locating=false;toast(msg);};
   const ok=(lat,lng)=>{locating=false;gotPosition(lat,lng);};
   locating=true;toast('현재 위치를 확인하고 있어요');
-  if(hooks.getLocation){
-    hooks.getLocation((lat,lng)=>ok(lat,lng),why=>fail(why==='denied'?'위치 권한이 꺼져 있어요. 권한을 허용하거나 지역을 직접 골라 보세요.':'위치를 가져오지 못했어요. 잠시 후 다시 눌러 보세요.'));return;
+  const getLoc=hooks.getLocation||(isToss()?tossLocation:null);
+  if(getLoc){
+    getLoc((lat,lng)=>ok(lat,lng),why=>fail(why==='denied'?'위치 권한이 꺼져 있어요. 권한을 허용하거나 지역을 직접 골라 보세요.':'위치를 가져오지 못했어요. 잠시 후 다시 눌러 보세요.'));return;
   }
   if(!navigator.geolocation){fail('이 환경에서는 위치를 쓸 수 없어요. 지역을 직접 골라 보세요.');return;}
   navigator.geolocation.getCurrentPosition(
@@ -510,8 +518,8 @@ function closeDetail(){$('detail').hidden=true;}
 $('detail').addEventListener('click',e=>{if(e.target.id==='detail')closeDetail();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('detail').hidden)closeDetail();});
 
-function copy(t){
-  const done=()=>toast('주소를 복사했어요');
+function copy(t,msg){
+  const done=()=>toast(msg||'주소를 복사했어요');
   if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(t).then(done,()=>fallback());}else fallback();
   function fallback(){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
     try{document.execCommand('copy');done();}catch(_){toast('복사하지 못했어요');}ta.remove();}
