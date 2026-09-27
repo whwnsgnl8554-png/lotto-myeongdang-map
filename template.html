@@ -203,8 +203,23 @@ if(inToss){
       ok(loc.coords.latitude,loc.coords.longitude);
     }catch(e){fail(e&&/permission/i.test(e.name||'')?'denied':'error');}
   };
-  hooks.openURL=u=>{AIT.openURL(u).catch(()=>{location.href=u;});};
+  hooks.openURL=u=>{
+    Promise.resolve().then(()=>AIT.openURL(u)).catch(()=>{
+      copy(u);toast('링크를 열지 못해 주소를 복사했어요. 브라우저에 붙여 넣어 주세요.');
+    });
+  };
 }
+
+/* 화면 안의 모든 외부 링크(지도 출처 표기 등)는 웹뷰 안에서 이동하지 않고
+   hooks.openURL로 기기 브라우저에서 열어요 */
+document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('a[href]');
+  if(!a)return;
+  const href=a.getAttribute('href');
+  if(!/^https?:\/\//i.test(href))return;
+  e.preventDefault();
+  hooks.openURL(href);
+},true);
 
 /* 회차 → 추첨일 (1회 2002-12-07, 매주 토요일) */
 function drawDate(r){const d=new Date(Date.UTC(2002,11,7)+(r-1)*7*864e5);
