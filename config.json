@@ -2,8 +2,8 @@
   "dataUrl": "https://whwnsgnl8554-png.github.io/lotto-myeongdang-map/data.json",
   "tiles": [
     {
-      "name": "CARTO Voyager (키 필요 — YOUR_KEY를 발급받은 키로 바꾸면 사용돼요)",
-      "url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=YOUR_KEY",
+      "name": "CARTO Voyager",
+      "url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_408f_1_9d622e65535857877bd5ae36",
       "subdomains": "abcd",
       "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>"
     },
