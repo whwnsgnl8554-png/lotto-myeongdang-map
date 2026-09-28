@@ -196,7 +196,7 @@ const AIT=window.__AIT__;
 const isToss=()=>!!(AIT&&window.ReactNativeWebView);
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
 /* 실기기 점검용 기록: '데이터 안내' 화면 맨 아래에 표시돼요 */
-const DIAG={sdk:!!AIT,rnAtLoad:!!window.ReactNativeWebView,last:'없음'};
+const DIAG={sdk:!!AIT,rnAtLoad:!!window.ReactNativeWebView,last:'없음',back:'브라우저'};
 const linkFail=(u,why)=>{DIAG.last='실패('+why+')';copy(u,'링크를 열지 못해 주소를 복사했어요. ('+why+')');};
 hooks.openURL=u=>{
   const rn=!!window.ReactNativeWebView;
@@ -399,15 +399,60 @@ function fitScope(){
   if(pts.length)map.fitBounds(L.latLngBounds(pts),{padding:[24,24],maxZoom:15});
 }
 
+/* ---------- 뒤로가기 ----------
+   상세 창, 탭 이동, 목록 펼침, 지역 선택을 기록해 두고
+   뒤로가기를 누르면 한 단계씩 되돌려요. 되돌릴 게 없을 때만 미니앱을 닫아요.
+   토스 앱: graniteEvent 'backEvent' / 일반 브라우저: history + popstate */
+const backStack=[];let restoring=false,tossBack=false,armed=false;
+function arm(){if(!tossBack&&!armed){try{history.pushState({lm:1},'');armed=true;}catch(_){}}}
+function pushBack(key,target,fn){if(restoring)return;backStack.push({key,target,fn});arm();}
+function topBack(){return backStack[backStack.length-1];}
+function dropBack(key){const e=topBack();if(e&&e.key===key)backStack.pop();}
+function goBack(){const e=backStack.pop();if(!e)return false;restoring=true;try{e.fn();}finally{restoring=false;}return true;}
+window.addEventListener('popstate',()=>{armed=false;if(tossBack)return;if(goBack()&&backStack.length)arm();});
+function hookTossBack(tries){
+  if(tossBack)return;
+  if(AIT&&AIT.graniteEvent&&window.ReactNativeWebView){
+    try{
+      AIT.graniteEvent.addEventListener('backEvent',{
+        onEvent:()=>{if(!goBack()){Promise.resolve().then(()=>AIT.closeView()).catch(()=>{});}},
+        onError:()=>{}
+      });
+      tossBack=true;DIAG.back='SDK';return;
+    }catch(_){}
+  }
+  if(tries>0)setTimeout(()=>hookTossBack(tries-1),300);
+}
+
 /* ---------- 칩 / 필터 ---------- */
 function renderChips(){
   const items=[['near','내 주변'],['all','전국'],...REG.map((r,i)=>[i,r])];
   $('chips').innerHTML=items.map(([v,l])=>`<button type="button" class="chip${v==='near'?' near':''}" data-v="${v}" aria-pressed="${st.region===v}">${l}</button>`).join('');
 }
+function setRegion(r,gugun){
+  st.region=r;st.gugun=gugun||'';
+  renderChips();
+  if(typeof st.region==='number'){
+    const gs=[...new Set(shops.filter(s=>s.r===st.region).map(s=>s.g).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+    $('gugun').innerHTML='<option value="">'+REG[st.region]+' 전체</option>'+gs.map(g=>`<option>${esc(g)}</option>`).join('');
+    $('gugun').value=st.gugun;
+  }
+  refresh({fit:true});
+}
+function regionKey(){return String(st.region)+'|'+st.gugun;}
+function recordRegion(nextKey){
+  const e=topBack();
+  if(e&&e.key==='region'&&e.target===nextKey){backStack.pop();return;}
+  const prev=st.region,prevG=st.gugun;
+  pushBack('region',regionKey(),()=>setRegion(prev,prevG));
+}
 $('chips').addEventListener('click',e=>{
   const b=e.target.closest('.chip');if(!b)return;
   const v=b.dataset.v;
-  st.region=v==='near'||v==='all'?v:+v;st.gugun='';
+  const nr=v==='near'||v==='all'?v:+v;
+  if(nr===st.region&&!st.gugun)return;
+  recordRegion(String(nr)+'|');
+  st.region=nr;st.gugun='';
   renderChips();
   if(typeof st.region==='number'){
     const gs=[...new Set(shops.filter(s=>s.r===st.region).map(s=>s.g).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
@@ -416,23 +461,38 @@ $('chips').addEventListener('click',e=>{
   if(st.region==='near'&&!st.pos){refresh();locate();return;}
   refresh({fit:true});
 });
-$('gugun').addEventListener('change',e=>{st.gugun=e.target.value;refresh({fit:true});});
+$('gugun').addEventListener('change',e=>{recordRegion(String(st.region)+'|'+e.target.value);st.gugun=e.target.value;refresh({fit:true});});
 $('min').addEventListener('change',e=>{st.min=+e.target.value;refresh();});
 $('radius').addEventListener('change',e=>{st.radius=+e.target.value;refresh({fit:true});});
 
+function setTab(tab,after){
+  st.tab=tab;
+  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.tab===tab));
+  $('main').classList.toggle('rank',tab==='rank');
+  if(tab==='map')setTimeout(()=>{map.invalidateSize();refresh();if(after)after();},0);else refresh();
+  $('list').scrollTop=0;
+}
+function goTab(tab,after){
+  if(tab===st.tab){if(after)after();return;}
+  const e=topBack();
+  if(e&&e.key==='tab'&&e.target===tab)backStack.pop();
+  else{const prev=st.tab;pushBack('tab',prev,()=>setTab(prev));}
+  setTab(tab,after);
+}
 document.querySelector('.seg').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
-  st.tab=b.dataset.tab;
-  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
-  $('main').classList.toggle('rank',st.tab==='rank');
-  if(st.tab==='map')setTimeout(()=>{map.invalidateSize();refresh();},0);else refresh();
-  $('list').scrollTop=0;
+  goTab(b.dataset.tab);
 });
 
-$('handle').addEventListener('click',()=>{
-  const open=$('sheet').classList.toggle('open');
+function setSheet(open){
+  $('sheet').classList.toggle('open',open);
   $('handle').setAttribute('aria-label',open?'목록 접기':'목록 펼치기');
   setTimeout(()=>map.invalidateSize(),260);
+}
+$('handle').addEventListener('click',()=>{
+  const open=!$('sheet').classList.contains('open');
+  if(open)pushBack('sheet',null,()=>setSheet(false));else dropBack('sheet');
+  setSheet(open);
 });
 
 $('list').addEventListener('click',e=>{
@@ -466,14 +526,15 @@ function gotPosition(lat,lng){
   st.pos=[lat,lng];$('toast').classList.remove('show');
   meLayer.clearLayers();
   L.marker(st.pos,{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[18,18]}),interactive:false,keyboard:false}).addTo(meLayer);
-  st.region='near';renderChips();
-  if(st.tab==='rank'){st.tab='map';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.tab==='map'));$('main').classList.remove('rank');setTimeout(()=>map.invalidateSize(),0);}
+  if(st.region!=='near')recordRegion('near|');
+  st.region='near';st.gugun='';renderChips();
+  if(st.tab==='rank')goTab('map');
   refresh({fit:true});
   L.circle(st.pos,{radius:st.radius*1000,color:'#3182F6',weight:1,fillOpacity:.05,interactive:false}).addTo(meLayer);
 }
 $('radius').addEventListener('change',()=>{if(st.pos){meLayer.eachLayer(l=>{if(l instanceof L.Circle)l.setRadius(st.radius*1000);});}});
 $('locBtn').addEventListener('click',()=>{
-  if(st.pos&&st.region!=='near'){st.region='near';renderChips();refresh({fit:true});}
+  if(st.pos&&st.region!=='near'){recordRegion('near|');st.region='near';st.gugun='';renderChips();refresh({fit:true});}
   else if(st.pos)map.fitBounds(L.latLng(st.pos).toBounds(st.radius*2000));
   else locate();
 });
@@ -501,14 +562,13 @@ function openDetail(s){
       <button type="button" class="btn sub" id="dCopy">주소 복사</button>
       ${st.tab==='rank'?'<button type="button" class="btn sub wide" id="dMap">지도에서 보기</button>':''}
     </div>`;
-  $('detail').hidden=false;
+  openModal();
   if(st.tab==='map')highlight(s);
   $('dRoute').onclick=()=>hooks.openURL(`https://map.kakao.com/link/to/${encodeURIComponent(s.n)},${s.lat},${s.lng}`);
   $('dCopy').onclick=()=>copy(s.ad);
   if($('dMap'))$('dMap').onclick=()=>{
-    closeDetail();st.tab='map';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.tab==='map'));
-    $('main').classList.remove('rank');
-    setTimeout(()=>{map.invalidateSize();map.setView([s.lat,s.lng],16);refresh();highlight(s);},0);
+    closeDetail();
+    goTab('map',()=>{map.setView([s.lat,s.lng],16);highlight(s);});
   };
   $('dRoute').focus();
 }
@@ -518,11 +578,16 @@ function openAbout(){
     <p>인터넷 판매분은 지도에 표시할 수 없어 뺐어요. 폐업했거나 이전한 판매점이 섞여 있을 수 있어요.</p>
     <p>로또 추첨은 매 회 독립적인 무작위 추첨이에요. 1등이 많이 나온 곳은 대체로 판매량이 많은 곳이고, 그곳에서 산다고 당첨 확률이 올라가지는 않아요.</p>
     <p>복권은 만 19세 이상만 살 수 있어요.</p>
-    <p style="font-size:11px;color:var(--mute)">점검: SDK ${DIAG.sdk?'O':'X'} · 토스연결(시작) ${DIAG.rnAtLoad?'O':'X'} · 토스연결(지금) ${window.ReactNativeWebView?'O':'X'} · 마지막 링크 ${esc(DIAG.last)}</p></div>
+    <p style="font-size:11px;color:var(--mute)">점검: SDK ${DIAG.sdk?'O':'X'} · 토스연결(시작) ${DIAG.rnAtLoad?'O':'X'} · 토스연결(지금) ${window.ReactNativeWebView?'O':'X'} · 마지막 링크 ${esc(DIAG.last)} · 뒤로가기 ${DIAG.back}</p></div>
     <div class="actions"><button type="button" class="btn wide" id="dClose">확인</button></div>`;
-  $('detail').hidden=false;$('dClose').onclick=closeDetail;$('dClose').focus();
+  openModal();$('dClose').onclick=closeDetail;$('dClose').focus();
 }
-function closeDetail(){$('detail').hidden=true;}
+function hideModal(){$('detail').hidden=true;}
+function openModal(){
+  if($('detail').hidden)pushBack('modal',null,hideModal);
+  $('detail').hidden=false;
+}
+function closeDetail(){hideModal();dropBack('modal');}
 $('detail').addEventListener('click',e=>{if(e.target.id==='detail')closeDetail();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('detail').hidden)closeDetail();});
 
@@ -565,6 +630,7 @@ async function loadRemote(){
 }
 
 renderChips();refresh();
+hookTossBack(20);
 loadCached();loadRemote();
 })();
 </script>
