@@ -195,15 +195,22 @@ window.LottoMap={
 const AIT=window.__AIT__;
 const isToss=()=>!!(AIT&&window.ReactNativeWebView);
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
-const linkFail=u=>{copy(u,'링크를 열지 못해 주소를 복사했어요. 브라우저에 붙여 넣어 주세요.');};
+/* 실기기 점검용 기록: '데이터 안내' 화면 맨 아래에 표시돼요 */
+const DIAG={sdk:!!AIT,rnAtLoad:!!window.ReactNativeWebView,last:'없음'};
+const linkFail=(u,why)=>{DIAG.last='실패('+why+')';copy(u,'링크를 열지 못해 주소를 복사했어요. ('+why+')');};
 hooks.openURL=u=>{
-  if(isToss()){
+  const rn=!!window.ReactNativeWebView;
+  if(AIT&&rn){
     const open=(AIT.Device&&AIT.Device.openURL)||AIT.openURL;
-    withTimeout(Promise.resolve().then(()=>open(u)),4000).catch(()=>linkFail(u));
+    DIAG.last='SDK 호출 중';
+    withTimeout(Promise.resolve().then(()=>open(u)),4000)
+      .then(()=>{DIAG.last='SDK 성공';})
+      .catch(e=>linkFail(u,'SDK '+String(e&&e.message||e).slice(0,60)));
     return;
   }
   const w=window.open(u,'_blank','noopener');
-  if(!w)linkFail(u);
+  DIAG.last=w?'브라우저 새 창':'브라우저 차단';
+  if(!w)linkFail(u,AIT?'토스 연결 없음':'SDK 없음');
 };
 hooks.getLocation=null;
 const tossLocation=async(ok,fail)=>{
@@ -510,7 +517,8 @@ function openAbout(){
     <p>동행복권이 공개한 로또6/45 당첨 판매점 기록 ${META.start}회~${META.latest}회(${drawDate(META.latest)} 추첨분까지)를 판매점별로 모았어요. 그 이전 회차는 판매점 정보가 공개되지 않았어요.</p>
     <p>인터넷 판매분은 지도에 표시할 수 없어 뺐어요. 폐업했거나 이전한 판매점이 섞여 있을 수 있어요.</p>
     <p>로또 추첨은 매 회 독립적인 무작위 추첨이에요. 1등이 많이 나온 곳은 대체로 판매량이 많은 곳이고, 그곳에서 산다고 당첨 확률이 올라가지는 않아요.</p>
-    <p>복권은 만 19세 이상만 살 수 있어요.</p></div>
+    <p>복권은 만 19세 이상만 살 수 있어요.</p>
+    <p style="font-size:11px;color:var(--mute)">점검: SDK ${DIAG.sdk?'O':'X'} · 토스연결(시작) ${DIAG.rnAtLoad?'O':'X'} · 토스연결(지금) ${window.ReactNativeWebView?'O':'X'} · 마지막 링크 ${esc(DIAG.last)}</p></div>
     <div class="actions"><button type="button" class="btn wide" id="dClose">확인</button></div>`;
   $('detail').hidden=false;$('dClose').onclick=closeDetail;$('dClose').focus();
 }

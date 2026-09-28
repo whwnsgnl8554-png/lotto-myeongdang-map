@@ -142,6 +142,15 @@ async function main() {
     minify: true, write: false, platform: 'browser', target: ['es2019'], logLevel: 'error',
   }).outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   html = html.replace('/*AIT_BRIDGE*/', () => bridge);
+
+  // 앱 본체 스크립트를 구형 웹뷰도 읽을 수 있는 문법(ES2017)으로 낮춰요
+  const APP_START = '<script>\n(function(){';
+  const s = html.lastIndexOf(APP_START);
+  if (s < 0) throw new Error('앱 본체 스크립트를 찾지 못했어요');
+  const e = html.indexOf('</script>', s);
+  const appJs = html.slice(s + 8, e);
+  const lowered = esbuild.transformSync(appJs, { target: 'es2017', loader: 'js', logLevel: 'error' }).code;
+  html = html.slice(0, s + 8) + lowered + html.slice(e);
   console.log('지도 타일:', tiles.map(x => x.name || x.url).join(' → '));
   const version = JSON.stringify({ latest: raw.latest, updated: raw.updated_at, shops: shops.length, builtAt: new Date().toISOString() }, null, 2);
 
