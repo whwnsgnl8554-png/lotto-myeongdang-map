@@ -5,18 +5,18 @@
       "name": "CARTO Voyager",
       "url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_408f_1_9d622e65535857877bd5ae36",
       "subdomains": "abcd",
-      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>"
+      "attribution": "© OpenStreetMap © CARTO"
     },
     {
       "name": "OpenStreetMap",
       "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
       "subdomains": "abc",
-      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>"
+      "attribution": "© OpenStreetMap"
     },
     {
       "name": "Esri World Street Map",
       "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-      "attribution": "Tiles &copy; Esri"
+      "attribution": "Tiles © Esri"
     }
   ]
 }

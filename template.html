@@ -558,7 +558,7 @@ function openDetail(s){
       <div class="rounds">${shown.map(r=>`<span title="${drawDate(r)}">${r}회${cnt.get(r)>1?' ×'+cnt.get(r):''}</span>`).join('')}${uniq.length>shown.length?`<em>외 ${uniq.length-shown.length}개 회차</em>`:''}</div></div>`
       :`<div class="d-sec"><h4>1등 기록은 없고 2등만 나온 곳이에요</h4></div>`}
     <div class="actions">
-      <button type="button" class="btn" id="dRoute">길찾기</button>
+      <button type="button" class="btn" id="dRoute">카카오맵 길찾기</button>
       <button type="button" class="btn sub" id="dCopy">주소 복사</button>
       ${st.tab==='rank'?'<button type="button" class="btn sub wide" id="dMap">지도에서 보기</button>':''}
     </div>`;
